@@ -4,6 +4,12 @@
 
 Safe, staged changes to a Cisco NX-OS + Juniper Junos data center fabric from one source of truth.
 
+## Demo
+
+[![FabricPilot demo video](docs/demo-poster.png)](docs/fabricpilot-short.mp4)
+
+**[Watch the 2-minute demo](docs/fabricpilot-short.mp4)**: the problem, the pipeline, the fabric, staged rollout with automatic rollback, the Google Cloud lab, and results on real Cisco and Juniper switches.
+
 ## Problem
 
 Data center fabric changes are often still made by hand, device by device, in two vendor
@@ -125,18 +131,19 @@ netbox/sync.py           NetBox push (bootstrap) / pull (export to intent)
 lab/                     containerlab topology generator, VM setup script
 ansible/                 alternative staged deploy with vendor collections
 scenarios/               valid and invalid change examples
-tests/                   31 tests: validation, rendering, rollout safety
+tests/                   54 tests: validation, rendering, rollout safety, live-driver parsing
+docs/                    2-minute demo video
 ```
 
 ## Status
 
 | Component | Status |
 |---|---|
-| Validation, rendering, planning, rollout logic, reporting | ✅ Tested (51 unit tests, simulated rollouts) |
+| Validation, rendering, planning, rollout logic, reporting | ✅ Tested (54 unit tests, simulated rollouts) |
 | Junos templates + live driver | ✅ **Deployed live** to vJunos-switch 26.2R1.7 (spine2 + leaf3): underlay and EVPN BGP established, anycast gateway answering host ping, staged rollout with convergence-aware health gates, `commit confirmed` + automatic rollback exercised |
 | NX-OS templates + live driver | ✅ **Deployed live** to Nexus 9000v 10.4(8) (spine1, leaf1, leaf2): underlay and EVPN BGP established, leaf1↔leaf2 VXLAN tunnel up, host1 (VLAN 10) ↔ host2 (VLAN 20) routed over the L3VNI |
 | Full 6-switch fabric | ✅ With 3 × NX-OS + 3 × Junos, all six deployed by the pipeline and the fabric-wide check passed (BGP and VTEP peers healthy on every switch). ⚠️ Later full rebuilds did not finish inside one session: Junos commits on a loaded vJunos took 15–30+ min, so runs halted safely at the canary (see *Lab limits*) |
-| Cisco ↔ Juniper EVPN interop | ✅ **L2 over VXLAN across vendors**: host1 (NX-OS leaf1) ↔ host3 (Junos leaf3), both directions. Ping matrix 10/16 · ⚠️ inter-VLAN routing across vendors (symmetric IRB on Junos) still open |
+| Cisco ↔ Juniper EVPN interop | ✅ **L2 over VXLAN across vendors**: host1 (NX-OS leaf1) ↔ host3 (Junos leaf3), both directions. **Routing between VLANs across vendors** after adding symmetric IRB on Junos: host2 (NX-OS, VLAN 20) ↔ host3 (Junos, VLAN 10). Overnight run (spine2 on Junos): 9/9 ping paths pass between the deployed leaves (9/16 overall; leaf4 was not deployed). Final run with spine2 on NX-OS halted safely at the leaf3 canary (4/16), see *Lab limits* |
 | Ansible playbook | ✅ **Run live** in check mode with `--diff` against the deployed Cisco switches: `changed=0` on spine1, leaf1, leaf2, so Ansible independently agrees with the pipeline; `serial` staging ran as separate plays |
 | NetBox sync | ✅ **Live against NetBox 4.7.2** (v2 API token): `push` loaded 6 devices, 8 cables, 2 VNIs; `pull` → rendered configs **byte-identical** on all 6 switches; adding VLAN 30 in NetBox made `plan` change exactly the 4 leaves and no spines |
 
