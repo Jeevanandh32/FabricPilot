@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+build/
+reports/
+.pytest_cache/
+ansible/collections/
+# vendor images: licensed, never commit
+*.qcow2
+*.iso
+# raw lab evidence (SSH session logs); review before sharing
+lab-evidence/
+# generated from NetBox by netbox/sync.py pull
+intent/from_netbox.yml
+# containerlab runtime dirs
+lab/clab-*/
+# personal session notes
+SESSION_NOTES.md

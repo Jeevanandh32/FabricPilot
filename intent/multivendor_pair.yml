@@ -1,0 +1,41 @@
+# Cisco + Juniper interop lab that fits the 8-vCPU VM: two leaves cabled back to back.
+# leaf1 (NX-OS) and leaf3 (Junos) run eBGP underlay + EVPN overlay directly and build a
+# VXLAN tunnel between vendors. Same names/addresses as fabric.yml for these two leaves.
+fabric:
+  name: multivendor-pair
+  topology: leaf-pair
+  spine_asn: 65000
+  rt_asn: 65000
+  loopback_pool: 10.255.0.0/24
+  p2p_pool: 10.0.0.0/24
+  anycast_mac: "0000.2222.3333"
+  mtu: 9216
+
+devices:
+  - name: leaf1
+    id: 1
+    role: leaf
+    platform: nxos
+    asn: 65001
+    mgmt_ip: 172.20.20.21
+    host_ports:
+      - {interface: Ethernet1/5, vlan: 10}   # host1: same VLAN as host3 -> L2 over VXLAN
+      - {interface: Ethernet1/6, vlan: 20}   # host2: other VLAN -> routed via TENANT1 (symmetric IRB)
+  - name: leaf3
+    id: 3
+    role: leaf
+    platform: junos
+    asn: 65003
+    mgmt_ip: 172.20.20.23
+    host_ports:
+      - {interface: ge-0/0/5, vlan: 10}      # host3
+
+links:
+  - {id: 0, a: "leaf1:Ethernet1/1", b: "leaf3:ge-0/0/0"}
+
+vrfs:
+  - {name: TENANT1, l3vni: 50001, l3vni_vlan: 3001}
+
+vnis:
+  - {name: WEB, vlan: 10, vni: 10010, vrf: TENANT1, gateway: 10.10.10.1/24}
+  - {name: APP, vlan: 20, vni: 10020, vrf: TENANT1, gateway: 10.20.20.1/24}

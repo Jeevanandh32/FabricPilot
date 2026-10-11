@@ -1,0 +1,38 @@
+hostname {{ dev.name }}
+feature bgp
+feature nv overlay
+nv overlay evpn
+interface loopback0
+  ip address {{ loopback }}/32
+{% for u in underlay %}
+interface {{ u.interface }}
+  description to {{ u.peer }}
+  no switchport
+  mtu {{ fabric.mtu }}
+  ip address {{ u.ip }}
+  no shutdown
+{% endfor %}
+route-map NH-UNCHANGED permit 10
+  set ip next-hop unchanged
+router bgp {{ asn }}
+  router-id {{ loopback }}
+  address-family ipv4 unicast
+    network {{ loopback }}/32
+  address-family l2vpn evpn
+    retain route-target all
+{% for u in underlay %}
+  neighbor {{ u.peer_ip }}
+    remote-as {{ u.peer_asn }}
+    description underlay-{{ u.peer }}
+    address-family ipv4 unicast
+{% endfor %}
+{% for o in overlay %}
+  neighbor {{ o.peer_ip }}
+    remote-as {{ o.peer_asn }}
+    description overlay-{{ o.peer }}
+    update-source loopback0
+    ebgp-multihop 3
+    address-family l2vpn evpn
+      send-community extended
+      route-map NH-UNCHANGED out
+{% endfor %}

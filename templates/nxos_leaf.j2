@@ -1,0 +1,102 @@
+hostname {{ dev.name }}
+feature bgp
+feature interface-vlan
+feature vn-segment-vlan-based
+feature nv overlay
+feature fabric forwarding
+nv overlay evpn
+fabric forwarding anycast-gateway-mac {{ fabric.anycast_mac }}
+{% for v in vnis %}
+vlan {{ v.vlan }}
+  name {{ v.name }}
+  vn-segment {{ v.vni }}
+{% endfor %}
+{% for vrf in vrfs %}
+vlan {{ vrf.l3vni_vlan }}
+  name L3VNI-{{ vrf.name }}
+  vn-segment {{ vrf.l3vni }}
+vrf context {{ vrf.name }}
+  vni {{ vrf.l3vni }}
+  rd auto
+  address-family ipv4 unicast
+{#   NX-OS stores `route-target both` as import + export lines; writing that canonical form keeps
+     text-based diffs (Ansible nxos_config, drift checks) idempotent. #}
+    route-target import {{ vrf.rt }}
+    route-target import {{ vrf.rt }} evpn
+    route-target export {{ vrf.rt }}
+    route-target export {{ vrf.rt }} evpn
+interface Vlan{{ vrf.l3vni_vlan }}
+  no shutdown
+  mtu {{ fabric.mtu }}
+  vrf member {{ vrf.name }}
+  ip forward
+{% endfor %}
+{% for v in vnis %}
+interface Vlan{{ v.vlan }}
+  no shutdown
+  vrf member {{ v.vrf }}
+  ip address {{ v.gateway }}
+  fabric forwarding mode anycast-gateway
+{% endfor %}
+interface loopback0
+  ip address {{ loopback }}/32
+{% for u in underlay %}
+interface {{ u.interface }}
+  description to {{ u.peer }}
+  no switchport
+  mtu {{ fabric.mtu }}
+  ip address {{ u.ip }}
+  no shutdown
+{% endfor %}
+{# `switchport` and `no shutdown` are access-port defaults that NX-OS hides from the running
+   config; leaving them out keeps Ansible's diff clean. (A platform with
+   `system default switchport shutdown` would need `no shutdown` back.) #}
+{% for p in host_ports %}
+interface {{ p.interface }}
+  description host-{{ p.vlan_name }}
+  switchport access vlan {{ p.vlan }}
+{% endfor %}
+interface nve1
+  no shutdown
+  host-reachability protocol bgp
+  source-interface loopback0
+{% for v in vnis %}
+  member vni {{ v.vni }}
+    ingress-replication protocol bgp
+{% endfor %}
+{% for vrf in vrfs %}
+  member vni {{ vrf.l3vni }} associate-vrf
+{% endfor %}
+router bgp {{ asn }}
+  router-id {{ loopback }}
+  address-family ipv4 unicast
+    network {{ loopback }}/32
+  address-family l2vpn evpn
+{% for u in underlay %}
+  neighbor {{ u.peer_ip }}
+    remote-as {{ u.peer_asn }}
+    description underlay-{{ u.peer }}
+    address-family ipv4 unicast
+{% endfor %}
+{% for o in overlay %}
+  neighbor {{ o.peer_ip }}
+    remote-as {{ o.peer_asn }}
+    description overlay-{{ o.peer }}
+    update-source loopback0
+    ebgp-multihop 3
+    address-family l2vpn evpn
+      send-community extended
+{% endfor %}
+{# `advertise l2vpn evpn` is deprecated with no effect on NX-OS 10.4 (seen live); the VRF's
+   L3VNI and route-targets are what carry IRB host routes. #}
+{% for vrf in vrfs %}
+  vrf {{ vrf.name }}
+    address-family ipv4 unicast
+{% endfor %}
+evpn
+{% for v in vnis %}
+  vni {{ v.vni }} l2
+    rd auto
+    route-target import {{ v.rt }}
+    route-target export {{ v.rt }}
+{% endfor %}

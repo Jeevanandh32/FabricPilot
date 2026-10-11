@@ -1,0 +1,28 @@
+# Static inventory mirroring intent/fabric.yml. With NetBox running, swap for
+# netbox.netbox.nb_inventory (see README).
+all:
+  vars:
+    ansible_connection: ansible.netcommon.network_cli
+    ansible_user: "{{ lookup('env', 'FABRIC_USER') | default('admin', true) }}"
+  children:
+    nxos:
+      vars:
+        ansible_network_os: cisco.nxos.nxos
+        ansible_password: "{{ lookup('env', 'FABRIC_PASSWORD_NXOS') or lookup('env', 'FABRIC_PASSWORD') }}"
+      hosts:
+        spine1: {ansible_host: 172.20.20.11}
+        spine2: {ansible_host: 172.20.20.12}
+        leaf1: {ansible_host: 172.20.20.21}
+        leaf2: {ansible_host: 172.20.20.22}
+    junos:
+      vars:
+        ansible_connection: ansible.netcommon.netconf
+        ansible_network_os: junipernetworks.junos.junos
+        ansible_password: "{{ lookup('env', 'FABRIC_PASSWORD_JUNOS') or lookup('env', 'FABRIC_PASSWORD') }}"
+      hosts:
+        leaf3: {ansible_host: 172.20.20.23}
+        leaf4: {ansible_host: 172.20.20.24}
+    spines:
+      hosts: {spine1: {}, spine2: {}}
+    leaves:
+      hosts: {leaf1: {}, leaf2: {}, leaf3: {}, leaf4: {}}

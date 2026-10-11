@@ -1,0 +1,33 @@
+# Alternative deploy path using Ansible's vendor collections. Pushes the configs
+# that `python cli.py render` wrote to build/. The Python rollout engine
+# (cli.py deploy --live) is the primary path because it gates on health checks;
+# this playbook shows the same staging with serial + max_fail_percentage.
+#
+#   ansible-playbook -i ansible/inventory.yml ansible/deploy.yml --check --diff   # review only
+#   ansible-playbook -i ansible/inventory.yml ansible/deploy.yml -e target=leaves
+- name: Staged fabric deploy
+  hosts: "{{ target | default('leaves') }}"
+  gather_facts: false
+  serial: [1, 2]              # canary first, then batches of 2
+  max_fail_percentage: 0      # any failure stops the play
+  vars:
+    cfg: "{{ playbook_dir }}/../build/{{ inventory_hostname }}.cfg"
+  tasks:
+    - name: Push NX-OS config
+      when: ansible_network_os == 'cisco.nxos.nxos'
+      cisco.nxos.nxos_config:
+        src: "{{ cfg }}"
+        save_when: changed
+
+    - name: Push Junos config with commit confirmed
+      when: ansible_network_os == 'junipernetworks.junos.junos'
+      junipernetworks.junos.junos_config:
+        src: "{{ cfg }}"
+        src_format: set
+        confirm: 5            # device rolls back in 5 min unless confirmed
+        comment: "fabric-automation"
+
+    - name: Confirm Junos commit
+      when: ansible_network_os == 'junipernetworks.junos.junos'
+      junipernetworks.junos.junos_config:
+        confirm_commit: true

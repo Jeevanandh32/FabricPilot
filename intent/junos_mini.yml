@@ -1,0 +1,43 @@
+# Two-switch Juniper subset of fabric.yml (spine2 + leaf3): fits the 8-vCPU lab VM.
+fabric:
+  name: junos-mini
+  spine_asn: 65000
+  rt_asn: 65000
+  loopback_pool: 10.255.0.0/24
+  p2p_pool: 10.0.0.0/24
+  anycast_mac: 0000.2222.3333
+  mtu: 9216
+devices:
+- name: spine2
+  id: 102
+  role: spine
+  platform: junos
+  mgmt_ip: 172.20.20.12
+- name: leaf3
+  id: 3
+  role: leaf
+  platform: junos
+  asn: 65003
+  mgmt_ip: 172.20.20.23
+  host_ports:
+  - interface: ge-0/0/5
+    vlan: 10
+links:
+- id: 6
+  a: spine2:ge-0/0/2
+  b: leaf3:ge-0/0/1
+vrfs:
+- name: TENANT1
+  l3vni: 50001
+  l3vni_vlan: 3001
+vnis:
+- name: WEB
+  vlan: 10
+  vni: 10010
+  vrf: TENANT1
+  gateway: 10.10.10.1/24
+- name: APP
+  vlan: 20
+  vni: 10020
+  vrf: TENANT1
+  gateway: 10.20.20.1/24

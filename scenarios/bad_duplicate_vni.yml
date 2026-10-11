@@ -1,0 +1,101 @@
+# BAD: VNI 10010 reused -> must be blocked before rendering.
+fabric:
+  name: lab-fabric
+  spine_asn: 65000
+  rt_asn: 65000
+  loopback_pool: 10.255.0.0/24
+  p2p_pool: 10.0.0.0/24
+  anycast_mac: 0000.2222.3333
+  mtu: 9216
+devices:
+- name: spine1
+  id: 101
+  role: spine
+  platform: nxos
+  mgmt_ip: 172.20.20.11
+- name: spine2
+  id: 102
+  role: spine
+  platform: nxos
+  mgmt_ip: 172.20.20.12
+- name: leaf1
+  id: 1
+  role: leaf
+  platform: nxos
+  asn: 65001
+  mgmt_ip: 172.20.20.21
+  host_ports:
+  - interface: Ethernet1/5
+    vlan: 10
+- name: leaf2
+  id: 2
+  role: leaf
+  platform: nxos
+  asn: 65002
+  mgmt_ip: 172.20.20.22
+  host_ports:
+  - interface: Ethernet1/5
+    vlan: 20
+- name: leaf3
+  id: 3
+  role: leaf
+  platform: junos
+  asn: 65003
+  mgmt_ip: 172.20.20.23
+  host_ports:
+  - interface: ge-0/0/5
+    vlan: 10
+- name: leaf4
+  id: 4
+  role: leaf
+  platform: junos
+  asn: 65004
+  mgmt_ip: 172.20.20.24
+  host_ports:
+  - interface: ge-0/0/5
+    vlan: 20
+links:
+- id: 0
+  a: spine1:Ethernet1/1
+  b: leaf1:Ethernet1/1
+- id: 1
+  a: spine1:Ethernet1/2
+  b: leaf2:Ethernet1/1
+- id: 2
+  a: spine1:Ethernet1/3
+  b: leaf3:ge-0/0/0
+- id: 3
+  a: spine1:Ethernet1/4
+  b: leaf4:ge-0/0/0
+- id: 4
+  a: spine2:Ethernet1/1
+  b: leaf1:Ethernet1/2
+- id: 5
+  a: spine2:Ethernet1/2
+  b: leaf2:Ethernet1/2
+- id: 6
+  a: spine2:Ethernet1/3
+  b: leaf3:ge-0/0/1
+- id: 7
+  a: spine2:Ethernet1/4
+  b: leaf4:ge-0/0/1
+vrfs:
+- name: TENANT1
+  l3vni: 50001
+  l3vni_vlan: 3001
+vnis:
+- name: WEB
+  vlan: 10
+  vni: 10010
+  vrf: TENANT1
+  gateway: 10.10.10.1/24
+- name: APP
+  vlan: 20
+  vni: 10020
+  vrf: TENANT1
+  gateway: 10.20.20.1/24
+- name: DB
+  vlan: 30
+  vni: 10010
+  vrf: TENANT1
+  gateway: 10.30.30.1/24

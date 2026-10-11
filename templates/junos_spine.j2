@@ -1,0 +1,27 @@
+{# Junos caps media MTU at 9192 (it includes the L2 header); NX-OS allows 9216. #}
+set system host-name {{ dev.name }}
+set interfaces lo0 unit 0 family inet address {{ loopback }}/32
+{% for u in underlay %}
+set interfaces {{ u.interface }} description "to {{ u.peer }}"
+set interfaces {{ u.interface }} mtu {{ [fabric.mtu, 9192] | min }}
+set interfaces {{ u.interface }} unit 0 family inet address {{ u.ip }}
+{% endfor %}
+set routing-options router-id {{ loopback }}
+set routing-options autonomous-system {{ asn }}
+set policy-options policy-statement EXPORT-LO term 1 from interface lo0.0
+set policy-options policy-statement EXPORT-LO term 1 then accept
+set protocols bgp group UNDERLAY type external
+set protocols bgp group UNDERLAY export EXPORT-LO
+{% for u in underlay %}
+set protocols bgp group UNDERLAY neighbor {{ u.peer_ip }} peer-as {{ u.peer_asn }}
+set protocols bgp group UNDERLAY neighbor {{ u.peer_ip }} description "underlay-{{ u.peer }}"
+{% endfor %}
+set protocols bgp group OVERLAY type external
+set protocols bgp group OVERLAY multihop no-nexthop-change
+set protocols bgp group OVERLAY local-address {{ loopback }}
+set protocols bgp group OVERLAY family evpn signaling
+set protocols bgp group OVERLAY keep all
+{% for o in overlay %}
+set protocols bgp group OVERLAY neighbor {{ o.peer_ip }} peer-as {{ o.peer_asn }}
+set protocols bgp group OVERLAY neighbor {{ o.peer_ip }} description "overlay-{{ o.peer }}"
+{% endfor %}

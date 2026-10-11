@@ -1,0 +1,76 @@
+{# Junos caps media MTU at 9192 (it includes the L2 header); NX-OS allows 9216. #}
+{# Sections this template owns are deleted and rebuilt in the same commit, so removed
+   intent is removed from the device (replace semantics, atomic). #}
+delete vlans
+delete switch-options
+delete protocols evpn
+delete routing-instances
+delete interfaces irb
+set system host-name {{ dev.name }}
+set interfaces lo0 unit 0 family inet address {{ loopback }}/32
+{% for u in underlay %}
+set interfaces {{ u.interface }} description "to {{ u.peer }}"
+set interfaces {{ u.interface }} mtu {{ [fabric.mtu, 9192] | min }}
+set interfaces {{ u.interface }} unit 0 family inet address {{ u.ip }}
+{% endfor %}
+{% for p in host_ports %}
+set interfaces {{ p.interface }} description "host-{{ p.vlan_name }}"
+set interfaces {{ p.interface }} unit 0 family ethernet-switching interface-mode access
+set interfaces {{ p.interface }} unit 0 family ethernet-switching vlan members {{ p.vlan_name }}
+{% endfor %}
+set routing-options router-id {{ loopback }}
+set routing-options autonomous-system {{ asn }}
+set policy-options policy-statement EXPORT-LO term 1 from interface lo0.0
+set policy-options policy-statement EXPORT-LO term 1 then accept
+set protocols bgp group UNDERLAY type external
+set protocols bgp group UNDERLAY export EXPORT-LO
+{% for u in underlay %}
+set protocols bgp group UNDERLAY neighbor {{ u.peer_ip }} peer-as {{ u.peer_asn }}
+set protocols bgp group UNDERLAY neighbor {{ u.peer_ip }} description "underlay-{{ u.peer }}"
+{% endfor %}
+set protocols bgp group OVERLAY type external
+set protocols bgp group OVERLAY multihop no-nexthop-change
+set protocols bgp group OVERLAY local-address {{ loopback }}
+set protocols bgp group OVERLAY family evpn signaling
+{% for o in overlay %}
+set protocols bgp group OVERLAY neighbor {{ o.peer_ip }} peer-as {{ o.peer_asn }}
+set protocols bgp group OVERLAY neighbor {{ o.peer_ip }} description "overlay-{{ o.peer }}"
+{% endfor %}
+{# One MAC-VRF per VNI with service-type vlan-based: advertises EVPN routes with Ethernet
+   Tag 0, like NX-OS. The default-switch (VLAN-aware bundle) uses Tag = VNI, and NX-OS
+   silently drops those routes (found live: Cisco never learned Junos hosts). #}
+{% for v in vnis %}
+set routing-instances MACVRF-{{ v.vni }} instance-type mac-vrf
+set routing-instances MACVRF-{{ v.vni }} service-type vlan-based
+set routing-instances MACVRF-{{ v.vni }} protocols evpn encapsulation vxlan
+set routing-instances MACVRF-{{ v.vni }} protocols evpn default-gateway no-gateway-community
+set routing-instances MACVRF-{{ v.vni }} protocols evpn extended-vni-list all
+set routing-instances MACVRF-{{ v.vni }} vtep-source-interface lo0.0
+set routing-instances MACVRF-{{ v.vni }} route-distinguisher {{ loopback }}:{{ v.vlan }}
+set routing-instances MACVRF-{{ v.vni }} vrf-target target:{{ v.rt }}
+set routing-instances MACVRF-{{ v.vni }} vlans {{ v.name }} vlan-id {{ v.vlan }}
+set routing-instances MACVRF-{{ v.vni }} vlans {{ v.name }} vxlan vni {{ v.vni }}
+set routing-instances MACVRF-{{ v.vni }} vlans {{ v.name }} l3-interface irb.{{ v.vlan }}
+{% for hp in host_ports if hp.vlan == v.vlan %}
+set routing-instances MACVRF-{{ v.vni }} interface {{ hp.interface }}.0
+{% endfor %}
+set interfaces irb unit {{ v.vlan }} family inet address {{ v.gateway }}
+set interfaces irb unit {{ v.vlan }} mac {{ fabric.anycast_mac_colon }}
+{% endfor %}
+{% for vrf in vrfs %}
+set routing-instances {{ vrf.name }} instance-type vrf
+{% for v in vnis if v.vrf == vrf.name %}
+set routing-instances {{ vrf.name }} interface irb.{{ v.vlan }}
+{% endfor %}
+set routing-instances {{ vrf.name }} interface lo0.{{ vrf.l3vni_vlan }}
+set interfaces lo0 unit {{ vrf.l3vni_vlan }} family inet
+set routing-instances {{ vrf.name }} route-distinguisher {{ loopback }}:{{ vrf.l3vni_vlan }}
+set routing-instances {{ vrf.name }} vrf-target target:{{ vrf.rt }}
+set routing-instances {{ vrf.name }} protocols evpn ip-prefix-routes advertise direct-nexthop
+set routing-instances {{ vrf.name }} protocols evpn ip-prefix-routes encapsulation vxlan
+set routing-instances {{ vrf.name }} protocols evpn ip-prefix-routes vni {{ vrf.l3vni }}
+{# Symmetric IRB like NX-OS: routed traffic between VLANs crosses the fabric on the L3VNI and
+   type-2 MAC/IP routes carry the L3 label. Junos defaults to asymmetric, so routing between
+   VLANs across vendors failed live while each vendor worked on its own. #}
+set routing-instances {{ vrf.name }} protocols evpn irb-symmetric-routing vni {{ vrf.l3vni }}
+{% endfor %}

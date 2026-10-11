@@ -1,0 +1,5 @@
+collections:
+  - cisco.nxos
+  - junipernetworks.junos
+  - ansible.netcommon
+  - netbox.netbox
