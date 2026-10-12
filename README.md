@@ -93,7 +93,7 @@ export SMTP_USER="you@gmail.com" SMTP_PASSWORD="<gmail app password>"
 
 ## Live lab (Google Cloud)
 
-1. Create a VM with nested virtualization (n2-highmem-8: 8 vCPU / 64 GB fits the free-trial limit):
+1. Create a VM with nested virtualization. Size it for the switches you run: n2-highmem-8 (8 vCPU / 64 GB, fits the free-trial limit) runs 2 switches (`lab/topology-multivendor-pair.clab.yml`: one Cisco leaf + one Juniper leaf); the full 6-switch fabric was run on 16–24 vCPU / 128 GB. Run at most 2 vJunos per VM (see *Lab limits*).
    ```bash
    gcloud compute instances create evpn-lab --zone=us-east1-b --machine-type=n2-highmem-8 \
      --enable-nested-virtualization --image-family=ubuntu-2404-lts-amd64 \

@@ -15,3 +15,6 @@ intent/from_netbox.yml
 lab/clab-*/
 # personal session notes
 SESSION_NOTES.md
+# local-only demo files (the 2-minute video is committed)
+docs/explainer.html
+docs/fabricpilot-demo.mp4
