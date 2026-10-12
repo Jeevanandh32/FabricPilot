@@ -1,0 +1,33 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Fabric change 20261011T175431.672770Z</title>
+<style>body{font-family:-apple-system,Segoe UI,sans-serif;margin:24px;color:#1f2328;background:#fff}
+table{border-collapse:collapse;margin:8px 0 20px}td,th{border:1px solid #d0d7de;padding:6px 10px;text-align:left;font-size:14px}
+th{background:#f6f8fa}</style></head><body>
+<h2>❌ Fabric change 20261011T175431.672770Z: HALTED</h2>
+<p>Mode: <b>live</b> | Halt reason: <b>leaf3 failed in wave canary</b></p>
+
+
+<h3>Change plan</h3><table><tr><th>Device</th><th>Change</th><th>Lines</th></tr><tr><td>spine1</td><td>new</td><td>+86 / -0</td></tr><tr><td>spine2</td><td>new</td><td>+41 / -0</td></tr><tr><td>leaf1</td><td>new</td><td>+104 / -0</td></tr><tr><td>leaf2</td><td>new</td><td>+104 / -0</td></tr><tr><td>leaf3</td><td>new</td><td>+72 / -0</td></tr><tr><td>leaf4</td><td>new</td><td>+72 / -0</td></tr></table>
+<h3>Rollout</h3><table><tr><th>Wave</th><th>Device</th><th>Platform</th><th>Result</th><th>Post-check</th><th>Problems</th></tr><tr><td>spine-new-spine1</td><td>spine1</td><td>nxos</td><td style='color:#1a7f37;font-weight:600'>confirmed</td><td>{&quot;bgp_established&quot;: 0, &quot;vtep_peers&quot;: 0}</td><td></td></tr><tr><td>spine-new-spine2</td><td>spine2</td><td>junos</td><td style='color:#1a7f37;font-weight:600'>confirmed</td><td>{&quot;bgp_established&quot;: 0, &quot;vtep_peers&quot;: 0}</td><td></td></tr><tr><td>canary</td><td>leaf1</td><td>nxos</td><td style='color:#1a7f37;font-weight:600'>confirmed</td><td>{&quot;bgp_established&quot;: 4, &quot;vtep_peers&quot;: 0}</td><td></td></tr><tr><td>canary</td><td>leaf3</td><td>junos</td><td style='color:#cf222e;font-weight:600'>rolled_back</td><td>{}</td><td>error: 
+
+Pattern not detected: &#x27;(?:commit complete|error|failed)[\\s\\S]*#\\s*$&#x27; in output.
+
+Things you might try to fix this:
+1. Adjust the regex pattern to better identify the terminating string. Note, in
+many situations the pattern is automatically based on the network device&#x27;s prompt.
+2. Increase the read_timeout to a larger value.
+
+You can also look at the Netmiko session_log or debug log for more information.
+
+; rollback error: 
+
+Pattern not detected: &#x27;\\[edit\\][\\s\\S]*#\\s*$&#x27; in output.
+
+Things you might try to fix this:
+1. Adjust the regex pattern to better identify the terminating string. Note, in
+many situations the pattern is automatically based on the network device&#x27;s prompt.
+2. Increase the read_timeout to a larger value.
+
+You can also look at the Netmiko session_log or debug log for more information.
+
+ (device-side commit timer is the backstop)</td></tr><tr><td>leaves-1</td><td>leaf2</td><td>nxos</td><td style='color:#6e7781;font-weight:600'>not_started</td><td>{}</td><td></td></tr><tr><td>leaves-1</td><td>leaf4</td><td>junos</td><td style='color:#6e7781;font-weight:600'>not_started</td><td>{}</td><td></td></tr></table>
+</body></html>

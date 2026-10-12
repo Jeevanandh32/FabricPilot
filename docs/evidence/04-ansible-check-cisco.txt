@@ -1,0 +1,31 @@
+
+PLAY [Staged fabric deploy] ****************************************************
+
+TASK [Push NX-OS config] *******************************************************
+[WARNING]: ansible-pylibssh not installed, falling back to paramiko
+ok: [spine1]
+
+TASK [Push Junos config with commit confirmed] *********************************
+skipping: [spine1]
+
+TASK [Confirm Junos commit] ****************************************************
+skipping: [spine1]
+
+PLAY [Staged fabric deploy] ****************************************************
+
+TASK [Push NX-OS config] *******************************************************
+ok: [leaf1]
+ok: [leaf2]
+
+TASK [Push Junos config with commit confirmed] *********************************
+skipping: [leaf1]
+skipping: [leaf2]
+
+TASK [Confirm Junos commit] ****************************************************
+skipping: [leaf1]
+skipping: [leaf2]
+
+PLAY RECAP (Cisco hosts)
+leaf1                      : ok=1    changed=0    unreachable=0    failed=0    skipped=2    rescued=0    ignored=0   
+leaf2                      : ok=1    changed=0    unreachable=0    failed=0    skipped=2    rescued=0    ignored=0   
+spine1                     : ok=1    changed=0    unreachable=0    failed=0    skipped=2    rescued=0    ignored=0   

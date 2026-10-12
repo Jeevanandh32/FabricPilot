@@ -1,0 +1,22 @@
+change plan:
+  spine1   no change +0 -0
+  spine2   NEW       +41 -0
+  leaf1    no change +0 -0
+  leaf2    no change +0 -0
+  leaf3    NEW       +57 -0
+  leaf4    NEW       +57 -0
+3 of 6 devices change
+== wave spine-new-spine2: spine2
+   spine2: converging {'bgp_established': 2, 'vtep_peers': 0}, want {'bgp_established': 4, 'vtep_peers': 0}
+   spine2: healthy {'bgp_established': 4, 'vtep_peers': 0} -> confirmed
+== wave canary: leaf3
+   leaf3: converging {'bgp_established': 1, 'vtep_peers': 0}, want {'bgp_established': 4, 'vtep_peers': 2}
+   leaf3: healthy {'bgp_established': 4, 'vtep_peers': 2} -> confirmed
+== wave leaves-1: leaf4
+   leaf4: converging {'bgp_established': 1, 'vtep_peers': 0}, want {'bgp_established': 4, 'vtep_peers': 3}
+   leaf4: healthy {'bgp_established': 4, 'vtep_peers': 3} -> confirmed
+== verify: fabric-wide post-check
+   all 6 devices healthy
+✅ SUCCESS
+report: ~/fabric/reports/20261011T012246.365637Z/report.html
+SMTP not configured; email saved to ~/fabric/reports/20261011T012246.365637Z/report.eml

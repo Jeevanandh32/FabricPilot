@@ -1,0 +1,23 @@
+=== Ping matrix
+PASS  host1 (leaf1/nxos, vlan 10) -> gateway 10.10.10.1  [local gateway]
+PASS  host1 (leaf1/nxos, vlan 10) -> host2 10.20.20.12  [L3 VNI (IRB)]
+PASS  host1 (leaf1/nxos, vlan 10) -> host3 10.10.10.13  [L2 VXLAN]
+FAIL  host1 (leaf1/nxos, vlan 10) -> host4 10.20.20.14  [L3 VNI (IRB)]
+PASS  host2 (leaf2/nxos, vlan 20) -> gateway 10.20.20.1  [local gateway]
+PASS  host2 (leaf2/nxos, vlan 20) -> host1 10.10.10.11  [L3 VNI (IRB)]
+PASS  host2 (leaf2/nxos, vlan 20) -> host3 10.10.10.13  [L3 VNI (IRB)]
+FAIL  host2 (leaf2/nxos, vlan 20) -> host4 10.20.20.14  [L2 VXLAN]
+PASS  host3 (leaf3/junos, vlan 10) -> gateway 10.10.10.1  [local gateway]
+PASS  host3 (leaf3/junos, vlan 10) -> host1 10.10.10.11  [L2 VXLAN]
+PASS  host3 (leaf3/junos, vlan 10) -> host2 10.20.20.12  [L3 VNI (IRB)]
+FAIL  host3 (leaf3/junos, vlan 10) -> host4 10.20.20.14  [L3 VNI (IRB)]
+FAIL  host4 (leaf4/junos, vlan 20) -> gateway 10.20.20.1  [local gateway]
+FAIL  host4 (leaf4/junos, vlan 20) -> host1 10.10.10.11  [L3 VNI (IRB)]
+FAIL  host4 (leaf4/junos, vlan 20) -> host2 10.20.20.12  [L2 VXLAN]
+FAIL  host4 (leaf4/junos, vlan 20) -> host3 10.10.10.13  [L3 VNI (IRB)]
+
+9/16 passed
+leaf2.cfg
+leaf1.cfg
+spine2.cfg
+spine1.cfg

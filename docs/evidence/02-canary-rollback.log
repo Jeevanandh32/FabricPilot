@@ -1,0 +1,43 @@
+change plan:
+  spine1   NEW       +86 -0
+  spine2   NEW       +41 -0
+  leaf1    NEW       +104 -0
+  leaf2    NEW       +104 -0
+  leaf3    NEW       +72 -0
+  leaf4    NEW       +72 -0
+6 of 6 devices change
+== wave spine-new-spine1: spine1
+   spine1: healthy {'bgp_established': 0, 'vtep_peers': 0} -> confirmed
+== wave spine-new-spine2: spine2
+   spine2: healthy {'bgp_established': 0, 'vtep_peers': 0} -> confirmed
+== wave canary: leaf1, leaf3
+   leaf1: converging {'bgp_established': 0, 'vtep_peers': 0}, want {'bgp_established': 4, 'vtep_peers': 0}
+   leaf1: converging {'bgp_established': 1, 'vtep_peers': 0}, want {'bgp_established': 4, 'vtep_peers': 0}
+   leaf1: converging {'bgp_established': 2, 'vtep_peers': 0}, want {'bgp_established': 4, 'vtep_peers': 0}
+   leaf1: converging {'bgp_established': 2, 'vtep_peers': 0}, want {'bgp_established': 4, 'vtep_peers': 0}
+   leaf1: converging {'bgp_established': 2, 'vtep_peers': 0}, want {'bgp_established': 4, 'vtep_peers': 0}
+   leaf1: converging {'bgp_established': 2, 'vtep_peers': 0}, want {'bgp_established': 4, 'vtep_peers': 0}
+   leaf1: converging {'bgp_established': 2, 'vtep_peers': 0}, want {'bgp_established': 4, 'vtep_peers': 0}
+   leaf1: converging {'bgp_established': 2, 'vtep_peers': 0}, want {'bgp_established': 4, 'vtep_peers': 0}
+   leaf1: converging {'bgp_established': 2, 'vtep_peers': 0}, want {'bgp_established': 4, 'vtep_peers': 0}
+   leaf1: converging {'bgp_established': 2, 'vtep_peers': 0}, want {'bgp_established': 4, 'vtep_peers': 0}
+   leaf1: converging {'bgp_established': 2, 'vtep_peers': 0}, want {'bgp_established': 4, 'vtep_peers': 0}
+   leaf1: converging {'bgp_established': 2, 'vtep_peers': 0}, want {'bgp_established': 4, 'vtep_peers': 0}
+   leaf1: converging {'bgp_established': 3, 'vtep_peers': 0}, want {'bgp_established': 4, 'vtep_peers': 0}
+   leaf1: healthy {'bgp_established': 4, 'vtep_peers': 0} -> confirmed
+   leaf3: FAILED health gate -> rolling back (error: 
+
+Pattern not detected: '(?:commit complete|error|failed)[\\s\\S]*#\\s*$' in output.
+
+Things you might try to fix this:
+1. Adjust the regex pattern to better identify the terminating string. Note, in
+many situations the pattern is automatically based on the network device's prompt.
+2. Increase the read_timeout to a larger value.
+
+You can also look at the Netmiko session_log or debug log for more information.
+
+)
+== wave leaves-1: skipped (rollout halted)
+❌ HALTED: leaf3 failed in wave canary
+report: ~/fabric/reports/20261011T175431.672770Z/report.html
+SMTP not configured; email saved to ~/fabric/reports/20261011T175431.672770Z/report.eml

@@ -10,6 +10,8 @@ Safe, staged changes to a Cisco NX-OS + Juniper Junos data center fabric from on
 
 **[Watch the 2-minute demo](docs/fabricpilot-short.mp4)**: the problem, the pipeline, the fabric, staged rollout with automatic rollback, the Google Cloud lab, and results on real Cisco and Juniper switches.
 
+**[Evidence from real switches](docs/evidence/)**: deploy logs, an automatic canary rollback, the ping matrix and Ansible output from the live lab.
+
 ## Problem
 
 Data center fabric changes are often still made by hand, device by device, in two vendor
