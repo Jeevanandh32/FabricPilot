@@ -1,4 +1,4 @@
-# Evidence from real switches
+# Evidence from the virtual switch lab
 
 Output from live runs on the Google Cloud lab: Nexus 9000v 10.4(8) and vJunos-switch 26.2R1.7 in containerlab. Lines are unedited; files are trimmed to the relevant run, the Ansible file to the Cisco plays, and file paths are shortened. Times are US Eastern (EDT).
 
@@ -12,3 +12,8 @@ GitHub shows `.html` files as source code. Download one and open it in a browser
 | 4 | [04-ansible-check-cisco.txt](04-ansible-check-cisco.txt) | Oct 11 · Cisco switches | Ansible (`cisco.nxos` collection) against the live Cisco switches: `changed=0` on spine1, leaf1 and leaf2, so Ansible agrees with what the pipeline deployed |
 
 Run 2 is the safety design working as intended: the pipeline could not confirm the Juniper canary, so it rolled it back and stopped before the batch wave. The slow commit is the lab's limit (see *Lab limits* in the main README), not a fabric fault.
+
+These records come from different runs and topology states. The six-device control-plane
+check in run 1 and the 9/16 host ping result in run 3 are separate results. Neither is the
+same as the 54 local automated tests. The main README also summarizes NetBox push/pull lab
+results; this directory does not contain their raw transcript.

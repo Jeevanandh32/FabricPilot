@@ -1,8 +1,9 @@
 """Device drivers.
 
 SimDriver   - in-memory fabric model for demos and tests; can inject failures.
-NetmikoDriver - real NX-OS / Junos over SSH. Written against documented CLI/JSON
-                output but NOT yet validated on a live lab; see README "Status".
+NetmikoDriver - NX-OS / Junos over SSH, exercised on Nexus 9000v and
+                vJunos-switch in the Google Cloud lab. See README "Status"
+                and docs/evidence for the recorded runs and validation limits.
 """
 from __future__ import annotations
 

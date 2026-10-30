@@ -13,7 +13,9 @@ section of the intent file; NetBox holds the inventory (devices, cables,
 addresses, ASNs, VLANs, VNIs, VRFs).
 
 Env: NETBOX_URL (default http://127.0.0.1:8000), NETBOX_TOKEN.
-STATUS: written against the NetBox 4 API, not yet run against a live instance.
+Validation: README "Status" records the NetBox 4.7.2 lab push/pull results.
+The local unit suite does not exercise a live NetBox service; the lab summary
+and automated-test coverage should be read separately.
 """
 from __future__ import annotations
 

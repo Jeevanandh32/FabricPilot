@@ -8,9 +8,9 @@ Safe, staged changes to a Cisco NX-OS + Juniper Junos data center fabric from on
 
 [![FabricPilot demo video](docs/demo-poster.png)](docs/fabricpilot-short.mp4)
 
-**[Watch the 2-minute demo](docs/fabricpilot-short.mp4)**: the problem, the pipeline, the fabric, staged rollout with automatic rollback, the Google Cloud lab, and results on real Cisco and Juniper switches.
+**[Watch the 2-minute demo](docs/fabricpilot-short.mp4)**: the problem, the pipeline, the fabric, staged rollout with automatic rollback, and results on virtual Cisco and Juniper switch images in Google Cloud.
 
-**[Evidence from real switches](docs/evidence/)**: deploy logs, an automatic canary rollback, the ping matrix and Ansible output from the live lab.
+**[Virtual switch lab evidence](docs/evidence/)**: deployment logs, a canary rollback, the ping matrix, and Ansible check-mode output from Nexus 9000v and vJunos-switch.
 
 ## Problem
 
@@ -149,7 +149,15 @@ docs/                    2-minute demo video
 | Ansible playbook | ✅ **Run live** in check mode with `--diff` against the deployed Cisco switches: `changed=0` on spine1, leaf1, leaf2, so Ansible independently agrees with the pipeline; `serial` staging ran as separate plays |
 | NetBox sync | ✅ **Live against NetBox 4.7.2** (v2 API token): `push` loaded 6 devices, 8 cables, 2 VNIs; `pull` → rendered configs **byte-identical** on all 6 switches; adding VLAN 30 in NetBox made `plan` change exactly the 4 leaves and no spines |
 
-### Found on real devices (and fixed)
+### Validation scope
+
+- The **54 local tests** cover validation, rendering, rollout behavior, and driver parsing using simulated devices and captured output. They do not recreate the cloud lab or connect to NetBox.
+- The committed full-fabric deployment log records healthy BGP/VTEP checks on **six devices** in an earlier 3-NX-OS/3-Junos run.
+- The separate host ping matrix records **9/16 passing checks**. All nine checks between the deployed leaves passed; the seven failures involved leaf4, which had not finished deploying in that run.
+- The later 4-NX-OS/2-Junos rebuild halted at the Juniper canary. It demonstrates the rollback path, not a completed six-device data-plane validation.
+- Ansible evidence covers **Cisco check mode**, rather than a full multivendor Ansible deployment. NetBox push/pull results are summarized in the status table; a raw NetBox run transcript is not included in `docs/evidence/`.
+
+### Found on virtual switch images (and fixed)
 
 | Finding | Fix |
 |---|---|
@@ -178,11 +186,11 @@ docs/                    2-minute demo video
 `--settle-seconds` is how long a device may take to converge before its gate fails, and
 `--confirm-minutes` is the Junos switch-side auto-rollback timer. Keep the timer longer
 than commit time + settle time, or the switch rolls back before the pipeline confirms.
-Hardware converges in seconds; this nested-virtualization lab needs minutes.
+These values describe the nested-virtualization lab. Physical-switch convergence and
+commit times have not been benchmarked by this project.
 
 | Environment | `--settle-seconds` | `--confirm-minutes` |
 |---|---|---|
-| Physical switches | 60–120 | 5 |
 | Lab VM, lightly loaded | 300 | 15 |
 | Lab VM, 6 switches on 16 vCPU | 900 | 45 (and `FABRIC_COMMIT_TIMEOUT=1800`) |
 
@@ -191,8 +199,9 @@ Hardware converges in seconds; this nested-virtualization lab needs minutes.
 The lab runs real vendor images under nested virtualization on one Google Cloud VM. vJunos-switch's
 virtual data plane busy-polls every vCPU it is given (measured ~330% of 4 vCPUs, ~600% of 6),
 which leaves its control plane starved: Junos commits took 15–30+ minutes and SSH was refused while
-they ran. Two vJunos per VM work; three do not, at any VM size tried (8, 16, 24 vCPUs). On real
-switches, or with fewer virtual Junos instances, these timings drop to seconds.
+they ran. Two vJunos per VM completed lab work more reliably than three at the VM sizes tried
+(8, 16, 24 vCPUs). These observations are specific to the tested nested-virtualization setup;
+they do not establish performance on physical switches or other hosts.
 
 ## Known limitations and next steps
 
