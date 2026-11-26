@@ -14,8 +14,9 @@ addresses, ASNs, VLANs, VNIs, VRFs).
 
 Env: NETBOX_URL (default http://127.0.0.1:8000), NETBOX_TOKEN.
 Validation: README "Status" records the NetBox 4.7.2 lab push/pull results.
-The local unit suite does not exercise a live NetBox service; the lab summary
-and automated-test coverage should be read separately.
+tests/test_netbox_pull.py checks pull_intent() against an in-memory fake of the
+pynetbox API (round trip to identical configs, site scoping); it does not talk
+to a real NetBox, so push and API-version behavior are covered by the lab only.
 """
 from __future__ import annotations
 
@@ -38,8 +39,11 @@ DEVICE_TYPES = {"nxos": ("Cisco", "Nexus 9000v"), "junos": ("Juniper", "vJunos-s
 
 
 def api():
+    token = os.environ.get("NETBOX_TOKEN")
+    if not token:
+        raise SystemExit("NETBOX_TOKEN is not set")
     import pynetbox
-    nb = pynetbox.api(os.environ.get("NETBOX_URL", "http://127.0.0.1:8000"), token=os.environ["NETBOX_TOKEN"])
+    nb = pynetbox.api(os.environ.get("NETBOX_URL", "http://127.0.0.1:8000"), token=token)
     return nb
 
 
@@ -118,15 +122,17 @@ def push(intent_path: Path) -> None:
     print(f"pushed {len(devices)} devices, {len(data['links'])} cables, {len(data['vnis'])} VNIs to NetBox")
 
 
-def pull(policy_path: Path) -> None:
-    nb = api()
-    policy = yaml.safe_load(policy_path.read_text())["fabric"]
+def pull_intent(nb, policy: dict) -> dict:
+    """Build an intent dict from NetBox. Only objects at the fabric's site are read, so other
+    sites' VLANs and L2VPNs in a shared NetBox never leak into this fabric."""
     site = nb.dcim.sites.get(slug=SITE)
+    if site is None:
+        raise SystemExit(f"NetBox has no site {SITE!r}; run `sync.py push` first")
 
     devices = []
-    names = {}
     for dev in nb.dcim.devices.filter(site_id=site.id):
-        names[dev.id] = dev.name
+        if dev.primary_ip4 is None:
+            raise SystemExit(f"{dev.name}: no primary IPv4 (management) address in NetBox")
         entry = {"name": dev.name, "id": dev.custom_fields["fabric_id"], "role": dev.role.slug,
                  "platform": dev.platform.slug,
                  "mgmt_ip": str(dev.primary_ip4.address).split("/")[0]}
@@ -138,35 +144,45 @@ def pull(policy_path: Path) -> None:
             entry["host_ports"] = ports
         devices.append(entry)
 
+    roles = {d["name"]: d["role"] for d in devices}
     links = []
     for cable in nb.dcim.cables.filter(site_id=site.id):
         a, b = cable.a_terminations[0], cable.b_terminations[0]
         ends = [f"{t.device.name}:{t.name}" for t in (a, b)]
-        roles = {d["name"]: d["role"] for d in devices}
         ends.sort(key=lambda e: roles[e.split(":")[0]] != "spine")  # spine side first
         links.append({"id": cable.custom_fields["fabric_link_id"], "a": ends[0], "b": ends[1]})
 
-    vrfs, vrf_by_id = [], {}
-    for vrf in nb.ipam.vrfs.all():
-        if vrf.custom_fields.get("l3vni"):
-            vrf_by_id[vrf.id] = vrf.name
-            vrfs.append({"name": vrf.name, "l3vni": vrf.custom_fields["l3vni"],
-                         "l3vni_vlan": vrf.custom_fields["l3vni_vlan"]})
-    gateways = {ip.description.rsplit(" ", 1)[-1]: (str(ip.address), vrf_by_id.get(ip.vrf.id))
-                for ip in nb.ipam.ip_addresses.filter(role="anycast") if ip.vrf}
+    vrf_by_id = {vrf.id: vrf for vrf in nb.ipam.vrfs.all() if vrf.custom_fields.get("l3vni")}
+    gateways = {}
+    for ip in nb.ipam.ip_addresses.filter(role="anycast"):
+        if ip.vrf and ip.vrf.id in vrf_by_id:
+            vid = (ip.description or "").rsplit(" ", 1)[-1]
+            gateways[vid] = (str(ip.address), vrf_by_id[ip.vrf.id].name)
 
-    vnis = []
+    vnis, used_vrfs = [], set()
     for term in nb.vpn.l2vpn_terminations.filter(assigned_object_type="ipam.vlan"):
-        l2 = nb.vpn.l2vpns.get(term.l2vpn.id)
         vlan = nb.ipam.vlans.get(term.assigned_object_id)
+        if vlan is None or vlan.site is None or vlan.site.id != site.id:
+            continue  # VLAN belongs to another site
+        l2 = nb.vpn.l2vpns.get(term.l2vpn.id)
+        if str(vlan.vid) not in gateways:
+            raise SystemExit(f"vlan {vlan.vid}: no anycast gateway IP (role anycast, description "
+                             f"'anycast gw vlan {vlan.vid}') in a VRF with an l3vni")
         gw, vrf = gateways[str(vlan.vid)]
+        used_vrfs.add(vrf)
         vnis.append({"name": vlan.name, "vlan": vlan.vid, "vni": l2.identifier, "vrf": vrf, "gateway": gw})
 
-    out = {"fabric": policy, "devices": sorted(devices, key=lambda d: (d["role"] != "spine", d["name"])),
-           "links": sorted(links, key=lambda l: l["id"]), "vrfs": vrfs,
-           "vnis": sorted(vnis, key=lambda v: v["vlan"])}
+    vrfs = [{"name": v.name, "l3vni": v.custom_fields["l3vni"], "l3vni_vlan": v.custom_fields["l3vni_vlan"]}
+            for v in vrf_by_id.values() if v.name in used_vrfs]
+    return {"fabric": policy, "devices": sorted(devices, key=lambda d: (d["role"] != "spine", d["name"])),
+            "links": sorted(links, key=lambda l: l["id"]), "vrfs": sorted(vrfs, key=lambda v: v["name"]),
+            "vnis": sorted(vnis, key=lambda v: v["vlan"])}
+
+
+def pull(policy_path: Path) -> None:
+    policy = yaml.safe_load(policy_path.read_text())["fabric"]
     print("# GENERATED from NetBox by netbox/sync.py pull")
-    print(yaml.safe_dump(out, sort_keys=False))
+    print(yaml.safe_dump(pull_intent(api(), policy), sort_keys=False))
 
 
 if __name__ == "__main__":

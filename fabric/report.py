@@ -56,7 +56,7 @@ def render_html(r: dict) -> str:
 table{{border-collapse:collapse;margin:8px 0 20px}}td,th{{border:1px solid #d0d7de;padding:6px 10px;text-align:left;font-size:14px}}
 th{{background:#f6f8fa}}</style></head><body>
 <h2>{ICONS.get(r['status'], '')} Fabric change {e(r['run_id'])}: {e(r['status'])}</h2>
-<p>Mode: <b>{e(r['mode'])}</b>{' | Halt reason: <b>' + e(r['halt_reason']) + '</b>' if r['halt_reason'] else ''}</p>
+<p>Mode: <b>{e(r['mode'])}</b> | Intent source: <b>{e(str(r.get('source', '')))}</b>{' | Halt reason: <b>' + e(r['halt_reason']) + '</b>' if r['halt_reason'] else ''}</p>
 {'<h3>Fabric-wide verification</h3><ul>' + ''.join(f"<li>{e(d)}: {e('; '.join(p))}</li>" for d, p in r['verify_problems'].items()) + '</ul>' if r['verify_problems'] else ''}
 {'<h3>Validation errors (nothing was deployed)</h3><ul>' + errors + '</ul>' if errors else ''}
 {'<h3>Change plan</h3><table><tr><th>Device</th><th>Change</th><th>Lines</th></tr>' + plan_rows + '</table>' if plan_rows else ''}

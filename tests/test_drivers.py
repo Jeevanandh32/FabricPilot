@@ -118,3 +118,73 @@ def test_junos_commit_error_is_reported():
     reply = "error: configuration check-out failed\n\n[edit]\nadmin@leaf3# "
     with pytest.raises(RuntimeError):
         _driver()._junos_commit(FakeChannel(reply), "commit confirmed 45")
+
+
+class FakeConn:
+    """Records what the NX-OS driver sends; answers every command with a prompt."""
+    def __init__(self, replies=None):
+        self.sent, self.replies = [], replies or {}
+
+    def clear_buffer(self): pass
+    def config_mode(self): pass
+    def write_channel(self, text): self.sent.append(text)
+    def read_until_pattern(self, *a, **k): return "(config)# end\nleaf1# "
+
+    def send_command(self, cmd, **k):
+        self.sent.append(cmd)
+        for prefix, reply in self.replies.items():
+            if cmd.startswith(prefix):
+                return reply
+        return "leaf1# "
+
+
+def nxos_driver(monkeypatch, conn):
+    from conftest import ROOT
+    from fabric.drivers import NetmikoDriver
+    from fabric.render import load_intent
+    monkeypatch.setenv("FABRIC_PASSWORD", "x")
+    drv = NetmikoDriver("20261126T101500.123456Z")
+    monkeypatch.setattr(drv, "_conn", lambda dev: conn)
+    leaf1 = next(d for d in load_intent(ROOT / "intent" / "fabric.yml").devices if d.name == "leaf1")
+    return drv, leaf1
+
+
+def test_nxos_checkpoint_deleted_after_confirm(monkeypatch):
+    # NX-OS keeps at most 10 user checkpoints; without cleanup every deploy fails after ~10 runs.
+    conn = FakeConn()
+    drv, leaf1 = nxos_driver(monkeypatch, conn)
+    drv.apply(leaf1, "hostname leaf1", 10)
+    drv.confirm(leaf1)
+    assert conn.sent[0] == f"checkpoint {drv.checkpoint}"
+    assert conn.sent[-1] == f"no checkpoint {drv.checkpoint}"
+    assert drv.warnings == []
+
+
+def test_nxos_checkpoint_cleanup_failure_is_only_a_warning(monkeypatch):
+    conn = FakeConn({"no checkpoint": "% Checkpoint not found\nleaf1# "})
+    drv, leaf1 = nxos_driver(monkeypatch, conn)
+    drv.apply(leaf1, "hostname leaf1", 10)
+    drv.confirm(leaf1)
+    assert len(drv.warnings) == 1 and drv.checkpoint in drv.warnings[0]
+
+
+def test_nxos_rejected_config_raises_without_rolling_back_twice(monkeypatch):
+    import pytest
+    conn = FakeConn()
+    conn.read_until_pattern = lambda *a, **k: "% Invalid command at '^' marker.\n(config)# end\nleaf1# "
+    drv, leaf1 = nxos_driver(monkeypatch, conn)
+    with pytest.raises(RuntimeError, match="rejected"):
+        drv.apply(leaf1, "bogus", 10)
+    assert not any(s.startswith("rollback") for s in conn.sent)   # rollout engine does it once
+    drv.rollback(leaf1)
+    assert conn.sent[-1] == f"rollback running-config checkpoint {drv.checkpoint}"
+
+
+def test_nxos_rollback_is_noop_when_checkpoint_was_refused(monkeypatch):
+    import pytest
+    conn = FakeConn({"checkpoint": "% Max checkpoints reached\nleaf1# "})
+    drv, leaf1 = nxos_driver(monkeypatch, conn)
+    with pytest.raises(RuntimeError, match="change not applied"):
+        drv.apply(leaf1, "hostname leaf1", 10)
+    drv.rollback(leaf1)   # nothing was applied, so nothing to undo (and no bogus rollback error)
+    assert conn.sent == [f"checkpoint {drv.checkpoint}"]

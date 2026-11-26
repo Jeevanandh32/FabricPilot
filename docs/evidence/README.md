@@ -15,5 +15,5 @@ Run 2 is the safety design working as intended: the pipeline could not confirm t
 
 These records come from different runs and topology states. The six-device control-plane
 check in run 1 and the 9/16 host ping result in run 3 are separate results. Neither is the
-same as the 54 local automated tests. The main README also summarizes NetBox push/pull lab
+same as the local automated tests. The main README also summarizes NetBox push/pull lab
 results; this directory does not contain their raw transcript.
