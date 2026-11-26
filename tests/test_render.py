@@ -111,3 +111,36 @@ def test_nxos_lines_match_running_config_form():
     assert "route-target both" not in CFG["leaf1"]
     port = CFG["leaf1"].split("interface Ethernet1/5\n", 1)[1].split("\ninterface", 1)[0]
     assert "switchport access vlan 10" in port and "  switchport\n" not in port and "no shutdown" not in port
+
+
+def test_parallel_links_share_one_overlay_session():
+    # ECMP: a second spine1-leaf1 link adds an underlay session but not a second EVPN session.
+    # A duplicate overlay entry made the health gate expect a session that cannot exist.
+    import copy
+    import yaml
+    from fabric.models import Fabric
+    from fabric.render import device_context
+    from fabric.rollout import expected_state
+    data = yaml.safe_load((ROOT / "intent" / "fabric.yml").read_text())
+    data = copy.deepcopy(data)
+    data["links"].append({"id": 20, "a": "spine1:Ethernet1/20", "b": "leaf1:Ethernet1/20"})
+    fab = Fabric.model_validate(data)
+    leaf1 = next(d for d in fab.devices if d.name == "leaf1")
+    ctx = device_context(fab, leaf1)
+    assert len(ctx["underlay"]) == 3 and [o["peer"] for o in ctx["overlay"]] == ["spine1", "spine2"]
+    assert expected_state(fab, leaf1, {d.name for d in fab.devices})["bgp_established"] == 5
+
+
+def test_junos_bgp_groups_rebuilt_so_removed_peers_are_removed():
+    for cfg in (CFG["leaf3"], JCFG["spine2"], JCFG["leaf3"]):
+        for group in ("UNDERLAY", "OVERLAY"):
+            assert cfg.index(f"delete protocols bgp group {group}") < cfg.index(f"set protocols bgp group {group}")
+        assert cfg.index("delete policy-options policy-statement EXPORT-LO") < \
+            cfg.index("set policy-options policy-statement EXPORT-LO")
+
+
+def test_plan_flags_deployed_devices_missing_from_intent(tmp_path):
+    from fabric.plan import orphaned
+    for name in ("leaf1", "leaf9"):
+        record_deployed(tmp_path, name, "x")
+    assert orphaned(tmp_path, CFG) == ["leaf9"]

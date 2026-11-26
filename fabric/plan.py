@@ -41,6 +41,13 @@ def build_plan(configs: dict[str, str], state_dir: Path) -> dict[str, DevicePlan
     return plan
 
 
+def orphaned(state_dir: Path, configs: dict[str, str]) -> list[str]:
+    """Devices recorded as deployed that are no longer in the intent. The pipeline never
+    decommissions a device, so these need a person (and are otherwise silently ignored)."""
+    return sorted(p.name.removesuffix(".cfg") for p in state_dir.glob("*.cfg")
+                  if p.name.removesuffix(".cfg") not in configs)
+
+
 def record_deployed(state_dir: Path, device: str, config: str) -> None:
     state_dir.mkdir(parents=True, exist_ok=True)
     (state_dir / f"{device}.cfg").write_text(config)

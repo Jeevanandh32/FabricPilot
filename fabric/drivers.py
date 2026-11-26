@@ -95,6 +95,8 @@ class NetmikoDriver:
         # live with "String failed to match token pattern").
         self.checkpoint = "fab-" + re.sub(r"[^A-Za-z0-9]", "", run_id)[:15]
         self._conns = {}
+        self._checkpointed: set[str] = set()  # NX-OS devices that have this run's rollback point
+        self.warnings: list[str] = []
 
     # A just-booted vJunos reports healthy before sshd answers, and a vJunos still finishing a
     # long commit refuses new logins for many minutes. Lab runs raise FABRIC_CONNECT_ATTEMPTS.
@@ -230,13 +232,15 @@ class NetmikoDriver:
             if re.search(r"%|error|fail", out, re.I):
                 # Fail closed: without a rollback point the change must not be applied.
                 raise RuntimeError(f"NX-OS checkpoint failed, change not applied: {out.strip()[-300:]}")
+            self._checkpointed.add(dev.name)
             conn.config_mode()
             conn.clear_buffer()
             conn.write_channel("\n".join(lines) + "\nend\n")
             out = conn.read_until_pattern(r"\(config[^)]*\)#\s*end\s*[\r\n]+\S+#\s*$",
                                           read_timeout=self.READ_TIMEOUT)
             if re.search(r"% Invalid|% Incomplete|% Ambiguous|\bERROR:|\bError:", out):
-                self.rollback(dev)
+                # Lines before the bad one are already applied. The rollout engine calls
+                # rollback() on every failed apply, so it is not repeated here.
                 raise RuntimeError(f"NX-OS rejected config:\n{out.strip()[-1500:]}")
 
     def confirm(self, dev: Device) -> None:
@@ -249,8 +253,29 @@ class NetmikoDriver:
         else:
             conn.send_command("copy running-config startup-config", expect_string=self.PROMPT,
                               read_timeout=self.READ_TIMEOUT)
+            self._delete_checkpoint(dev, conn)
+
+    def _delete_checkpoint(self, dev: Device, conn) -> None:
+        """NX-OS keeps at most 10 user checkpoints; at the limit new ones are refused, and
+        apply() fails closed without one. Without cleanup, every NX-OS deploy would be
+        refused after about 10 runs. Only called once the change is confirmed, so a failure
+        here is a warning, never a failed device."""
+        try:
+            conn.clear_buffer()
+            out = conn.send_command(f"no checkpoint {self.checkpoint}", expect_string=self.PROMPT,
+                                    read_timeout=self.READ_TIMEOUT)
+            if re.search(r"%|error|fail", out, re.I):
+                raise RuntimeError(out.strip()[-200:])
+            self._checkpointed.discard(dev.name)
+        except Exception as exc:
+            self.warnings.append(f"{dev.name}: could not delete checkpoint {self.checkpoint} ({exc}); "
+                                 f"remove it by hand with `no checkpoint {self.checkpoint}`")
 
     def rollback(self, dev: Device) -> None:
+        if dev.platform == "nxos" and dev.name not in self._checkpointed:
+            # apply() never touches the config before the checkpoint exists, so there is
+            # nothing to undo (e.g. SSH failed or the checkpoint itself was refused).
+            return
         conn = self._conn(dev)
         conn.clear_buffer()
         if dev.platform == "junos":
@@ -259,6 +284,8 @@ class NetmikoDriver:
             self._junos_commit(conn, "commit")
             self._junos_exit(conn)
         else:
+            # The checkpoint is kept after a rollback: it is the evidence of the state that was
+            # restored, and rollbacks halt the run for a person to look at.
             conn.send_command(f"rollback running-config checkpoint {self.checkpoint}", expect_string=self.PROMPT,
                               read_timeout=self.READ_TIMEOUT)
 

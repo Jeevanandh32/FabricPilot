@@ -104,13 +104,13 @@ export SMTP_USER="you@gmail.com" SMTP_PASSWORD="<gmail app password>"
 3. Copy the Nexus 9000v and vJunos-switch `.qcow2` images to `~/images/`, then run `bash lab/setup_vm.sh images`.
 4. `sudo containerlab deploy -t lab/topology.clab.yml`. The topology is **generated from the intent file** (`lab/gen_topology.py`), and CI fails if they drift.
 5. Seed NetBox: `NETBOX_TOKEN=... python netbox/sync.py push`
-6. Deploy from NetBox:
+6. Deploy from NetBox. With `--netbox` the pipeline reads devices, cables, VLANs, VNIs and VRFs straight from NetBox; only the fabric-wide policy (pools, spine ASN, anycast MAC, MTU) comes from `intent/fabric.yml`. Each run saves what it pulled to `build/intent-from-netbox.yml`, and the report records the source. If NetBox is unreachable or incomplete, the run is BLOCKED before anything is rendered.
    ```bash
-   python netbox/sync.py pull > intent/from_netbox.yml
-   export FABRIC_PASSWORD_NXOS=admin FABRIC_PASSWORD_JUNOS=admin@123
-   python cli.py plan   --intent intent/from_netbox.yml --live
-   python cli.py deploy --intent intent/from_netbox.yml --live
+   export NETBOX_TOKEN=... FABRIC_PASSWORD_NXOS=admin FABRIC_PASSWORD_JUNOS=admin@123
+   python cli.py plan   --netbox --live
+   python cli.py deploy --netbox --live
    ```
+   (`python netbox/sync.py pull > intent/from_netbox.yml` still exports a file for review.)
 7. Test the data plane: `sudo docker exec clab-lab-fabric-host1 ping 10.10.10.13` (Cisco leaf to Juniper leaf, same VLAN).
 
 **Stop the VM after every session:** `gcloud compute instances stop evpn-lab --zone=us-east1-b`
@@ -129,11 +129,11 @@ fabric/rollout.py        waves, health gates, rollback, fabric-wide verify
 fabric/drivers.py        SimDriver (demo/tests) and NetmikoDriver (live)
 fabric/report.py         HTML/JSON report + email
 cli.py                   validate | render | plan | deploy
-netbox/sync.py           NetBox push (bootstrap) / pull (export to intent)
+netbox/sync.py           NetBox push (bootstrap) / pull (read by cli.py --netbox, or exported to a file)
 lab/                     containerlab topology generator, VM setup script
 ansible/                 alternative staged deploy with vendor collections
 scenarios/               valid and invalid change examples
-tests/                   54 tests: validation, rendering, rollout safety, live-driver parsing
+tests/                   73 tests: validation, rendering, rollout safety, live-driver parsing, NetBox pull, CLI guards
 docs/                    2-minute demo video
 ```
 
@@ -141,7 +141,7 @@ docs/                    2-minute demo video
 
 | Component | Status |
 |---|---|
-| Validation, rendering, planning, rollout logic, reporting | ✅ Tested (54 unit tests, simulated rollouts) |
+| Validation, rendering, planning, rollout logic, reporting | ✅ Tested (73 unit tests, simulated rollouts) |
 | Junos templates + live driver | ✅ **Deployed live** to vJunos-switch 26.2R1.7 (spine2 + leaf3): underlay and EVPN BGP established, anycast gateway answering host ping, staged rollout with convergence-aware health gates, `commit confirmed` + automatic rollback exercised |
 | NX-OS templates + live driver | ✅ **Deployed live** to Nexus 9000v 10.4(8) (spine1, leaf1, leaf2): underlay and EVPN BGP established, leaf1↔leaf2 VXLAN tunnel up, host1 (VLAN 10) ↔ host2 (VLAN 20) routed over the L3VNI |
 | Full 6-switch fabric | ✅ With 3 × NX-OS + 3 × Junos, all six deployed by the pipeline and the fabric-wide check passed (BGP and VTEP peers healthy on every switch). ⚠️ Later full rebuilds did not finish inside one session: Junos commits on a loaded vJunos took 15–30+ min, so runs halted safely at the canary (see *Lab limits*) |
@@ -151,7 +151,8 @@ docs/                    2-minute demo video
 
 ### Validation scope
 
-- The **54 local tests** cover validation, rendering, rollout behavior, and driver parsing using simulated devices and captured output. They do not recreate the cloud lab or connect to NetBox.
+- The **73 local tests** cover validation, rendering, rollout behavior, driver parsing (captured output and a fake SSH session), NetBox pull and the `--netbox` source (an in-memory fake of the API) and CLI guards. They do not recreate the cloud lab or connect to a real NetBox.
+- **Fixed after the lab runs, unit-tested only (not yet re-run on the switch images):** NX-OS checkpoints are deleted after a confirmed change (NX-OS keeps at most 10, and the driver refuses to apply without one); Junos templates also rebuild their BGP groups and export policy; parallel links no longer create a duplicate EVPN session that the health gate waited for; a live run refuses a Junos rollback timer shorter than the health gate; NetBox pull reads only the fabric's site; `--netbox` makes the pipeline read NetBox directly instead of a manually exported file.
 - The committed full-fabric deployment log records healthy BGP/VTEP checks on **six devices** in an earlier 3-NX-OS/3-Junos run.
 - The separate host ping matrix records **9/16 passing checks**. All nine checks between the deployed leaves passed; the seven failures involved leaf4, which had not finished deploying in that run.
 - The later 4-NX-OS/2-Junos rebuild halted at the Juniper canary. It demonstrates the rollback path, not a completed six-device data-plane validation.
@@ -186,6 +187,7 @@ docs/                    2-minute demo video
 `--settle-seconds` is how long a device may take to converge before its gate fails, and
 `--confirm-minutes` is the Junos switch-side auto-rollback timer. Keep the timer longer
 than commit time + settle time, or the switch rolls back before the pipeline confirms.
+A live run refuses to start unless the timer is at least `--settle-seconds` + 2 minutes (default: 300 s and 10 min).
 These values describe the nested-virtualization lab. Physical-switch convergence and
 commit times have not been benchmarked by this project.
 
@@ -205,7 +207,8 @@ they do not establish performance on physical switches or other hosts.
 
 ## Known limitations and next steps
 
-- Config push is merge-only: removing something from intent doesn't delete it from the device yet. Next step: Junos `load override` and NX-OS `configure replace`.
+- Removing intent: Junos templates delete and rebuild the sections they own (VLANs, EVPN, routing instances, IRB, BGP groups, export policy) in one commit, so removed VNIs and peers are removed. Fabric and host-port interfaces on Junos, and everything on NX-OS, are still merge-only. Next step: NX-OS `configure replace` and a Junos interface cleanup.
+- Decommissioning: a device removed from the intent is only flagged by `plan`/`deploy` (it stays in `state/deployed`); it is never wiped automatically.
 - NX-OS rollback is driven by the pipeline (checkpoint/rollback). Junos has a device-side timer. Next step: NX-OS `configure replace ... commit-timeout` for the same guarantee.
 - Health checks cover BGP sessions and VTEP peers. Next step: EVPN route counts, MAC/ARP tables, host-to-host ping.
 - Drift detection: scheduled comparison of running config against intent.

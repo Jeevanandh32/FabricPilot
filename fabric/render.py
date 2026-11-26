@@ -44,7 +44,11 @@ def device_context(fab: Fabric, dev: Device) -> dict:
             "interface": local_if, "ip": f"{local_ip}/31",
             "peer": peer.name, "peer_ip": str(peer_ip), "peer_asn": peer_asn,
         })
-        overlay.append({"peer": peer.name, "peer_ip": str(loopback(fab, peer)), "peer_asn": peer_asn})
+        # One overlay session per peer device: parallel links (ECMP) add underlay sessions
+        # but share the loopback-to-loopback EVPN session. A duplicate here would make the
+        # health gate expect a session that can never exist and roll back a good change.
+        if all(o["peer"] != peer.name for o in overlay):
+            overlay.append({"peer": peer.name, "peer_ip": str(loopback(fab, peer)), "peer_asn": peer_asn})
 
     is_leaf = dev.role == "leaf"
     rt = fab.fabric.rt_asn

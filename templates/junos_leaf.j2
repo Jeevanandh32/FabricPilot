@@ -6,6 +6,9 @@ delete switch-options
 delete protocols evpn
 delete routing-instances
 delete interfaces irb
+delete protocols bgp group UNDERLAY
+delete protocols bgp group OVERLAY
+delete policy-options policy-statement EXPORT-LO
 set system host-name {{ dev.name }}
 set interfaces lo0 unit 0 family inet address {{ loopback }}/32
 {% for u in underlay %}

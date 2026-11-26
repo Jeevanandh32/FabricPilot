@@ -1,4 +1,9 @@
 {# Junos caps media MTU at 9192 (it includes the L2 header); NX-OS allows 9216. #}
+{# The BGP groups and export policy are deleted and rebuilt in the same commit, so a removed
+   link or peer is removed from the device. An unchanged group produces no commit diff. #}
+delete protocols bgp group UNDERLAY
+delete protocols bgp group OVERLAY
+delete policy-options policy-statement EXPORT-LO
 set system host-name {{ dev.name }}
 set interfaces lo0 unit 0 family inet address {{ loopback }}/32
 {% for u in underlay %}
