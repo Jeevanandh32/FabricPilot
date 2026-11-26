@@ -4,8 +4,8 @@ jobs:
   validate-render-simulate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with: {python-version: "3.12"}
       - run: pip install -r requirements.txt
       - name: Unit tests
@@ -29,6 +29,6 @@ jobs:
         run: |
           rm -rf state/simulated
           if python cli.py deploy --simulate --fail-on leaf3; then echo "::error::rollout did not halt"; exit 1; fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: {name: build-and-reports, path: "build/\nreports/"}
